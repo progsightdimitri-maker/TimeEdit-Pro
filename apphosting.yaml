@@ -4,3 +4,9 @@ runConfig:
   concurrency: 80
   cpu: 1
   memoryMiB: 512
+env:
+  - variable: GEMINI_API_KEY
+    value: AIzaSyCNvpBgQ5qMTp1xfXrCCseTz-xsDax0oQo
+    availability:
+      - BUILD
+      - RUNTIME

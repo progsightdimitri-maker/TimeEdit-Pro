@@ -1,3 +1,7 @@
+// Shim for process.env (prevents blank page if a library or service references it)
+if (typeof window !== 'undefined' && !window.process) {
+  (window as any).process = { env: {} };
+}
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';

@@ -137,13 +137,19 @@ export const EditTimeEntryModal: React.FC<EditTimeEntryModalProps> = ({
                   onChange={(e) => setProjectId(e.target.value)}
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2 bg-white text-gray-900"
                 >
-                  {projects.map(p => (
-                    (p.active !== false || p.id === projectId) && (
+                  {[...projects]
+                    .filter(p => p.active !== false || p.id === projectId)
+                    .sort((a, b) => {
+                      const cA = a.client || '';
+                      const cB = b.client || '';
+                      if (cA !== cB) return cA.localeCompare(cB);
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.name} {p.active === false ? '(Archived)' : ''}
+                        {p.name}{p.client ? ` (${p.client})` : ''}{p.active === false ? ' (Archived)' : ''}
                       </option>
-                    )
-                  ))}
+                    ))}
                 </select>
               </div>
 

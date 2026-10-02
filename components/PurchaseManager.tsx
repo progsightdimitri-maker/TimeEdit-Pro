@@ -124,9 +124,17 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
                             onChange={(e) => setProjectId(e.target.value)}
                         >
                             <option value="">Sélectionner</option>
-                            {projects.filter(p => p.active !== false).map(p => (
-                                <option key={p.id} value={p.id}>{p.name} ({p.client})</option>
-                            ))}
+                            {[...projects]
+                                .filter(p => p.active !== false)
+                                .sort((a, b) => {
+                                    const cA = a.client || '';
+                                    const cB = b.client || '';
+                                    if (cA !== cB) return cA.localeCompare(cB);
+                                    return a.name.localeCompare(b.name);
+                                })
+                                .map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}{p.client ? ` (${p.client})` : ''}</option>
+                                ))}
                         </select>
                     </div>
                 </div>
@@ -207,9 +215,16 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
                                                     value={editProjectId}
                                                     onChange={(e) => setEditProjectId(e.target.value)}
                                                 >
-                                                    {projects.map(p => (
-                                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                                    ))}
+                                                    {[...projects]
+                                                        .sort((a, b) => {
+                                                            const cA = a.client || '';
+                                                            const cB = b.client || '';
+                                                            if (cA !== cB) return cA.localeCompare(cB);
+                                                            return a.name.localeCompare(b.name);
+                                                        })
+                                                        .map(p => (
+                                                            <option key={p.id} value={p.id}>{p.name}{p.client ? ` (${p.client})` : ''}</option>
+                                                        ))}
                                                 </select>
                                                 <div className="flex items-center gap-1">
                                                     <button

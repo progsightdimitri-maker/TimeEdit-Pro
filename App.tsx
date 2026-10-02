@@ -15,7 +15,8 @@ import {
   Loader2,
   CreditCard,
   Globe,
-  Server as ServerIcon
+  Server as ServerIcon,
+  Building2
 } from 'lucide-react';
 import {
   format,
@@ -67,6 +68,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<ViewMode>('timer');
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
   const [timerBillingFilter, setTimerBillingFilter] = useState<'all' | 'invoiced' | 'not-invoiced'>('all');
+  const [timerClientFilter, setTimerClientFilter] = useState<string>('all');
 
   // Use custom hooks for data and timer management
   const { projects, clients, entries, licenses, servers, domains, settings } = useFirestoreData(user?.uid || null);
@@ -398,14 +400,29 @@ const App: React.FC = () => {
 
   // Grouping Logic - Use utility function with optional filtering
   const groupedEntries = useMemo(() => {
-    let filteredEntries = entries;
-    if (timerBillingFilter === 'invoiced') {
-      filteredEntries = entries.filter(e => e.invoiced);
-    } else if (timerBillingFilter === 'not-invoiced') {
-      filteredEntries = entries.filter(e => !e.invoiced);
-    }
+    const projectMap = new Map(projects.map(p => [p.id, p]));
+    const selectedClientObj = clients.find(c => c.id === timerClientFilter);
+
+    const filteredEntries = entries.filter(e => {
+      // 1. Billing Filter
+      if (timerBillingFilter === 'invoiced' && !e.invoiced) return false;
+      if (timerBillingFilter === 'not-invoiced' && e.invoiced) return false;
+
+      // 2. Client Filter
+      if (timerClientFilter !== 'all') {
+        const proj = projectMap.get(e.project);
+        if (timerClientFilter === 'no-client') {
+          if (proj && proj.client) return false;
+        } else if (selectedClientObj) {
+          if (!proj || proj.client !== selectedClientObj.name) return false;
+        }
+      }
+
+      return true;
+    });
+
     return groupEntriesByWeek(filteredEntries);
-  }, [entries, timerBillingFilter]);
+  }, [entries, projects, clients, timerBillingFilter, timerClientFilter]);
 
   const [licenseFilter, setLicenseFilter] = useState<'all' | 'invoiced' | 'not-invoiced'>('all');
   const [newLicenseName, setNewLicenseName] = useState('');
@@ -471,6 +488,20 @@ const App: React.FC = () => {
 
 
   const selectedProject = projects.find(p => p.id === selectedProjectId);
+  const selectedClientObj = clients.find(c => c.id === timerClientFilter);
+
+  const availableTimerProjects = useMemo(() => {
+    let filtered = projects.filter(p => p.active !== false);
+    if (timerClientFilter === 'no-client') {
+      filtered = filtered.filter(p => !p.client);
+    } else if (timerClientFilter !== 'all') {
+      const client = clients.find(c => c.id === timerClientFilter);
+      if (client) {
+        filtered = filtered.filter(p => p.client === client.name);
+      }
+    }
+    return filtered;
+  }, [projects, timerClientFilter, clients]);
 
   // --- Render Views ---
 
@@ -514,39 +545,70 @@ const App: React.FC = () => {
 
             {/* Project Dropdown */}
             {isProjectPickerOpen && (
-              <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <div className="px-3 py-2 border-b border-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  Select Project
+              <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-100 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <div className="px-3 py-2 border-b border-gray-50 flex items-center justify-between text-xs">
+                  <span className="font-semibold text-gray-500 uppercase tracking-wider truncate">
+                    {timerClientFilter === 'all'
+                      ? 'Select Project'
+                      : timerClientFilter === 'no-client'
+                        ? 'Sans client'
+                        : selectedClientObj?.name || 'Client'}
+                  </span>
+                  {timerClientFilter !== 'all' && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTimerClientFilter('all');
+                      }}
+                      className="text-blue-500 hover:text-blue-700 font-medium ml-2 text-[11px]"
+                    >
+                      Tous
+                    </button>
+                  )}
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {projects.length === 0 && (
+                  {availableTimerProjects.length === 0 && (
                     <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                      No projects found.<br />Go to Projects to create one.
+                      {timerClientFilter !== 'all' ? (
+                        <div>
+                          <span>Aucun projet pour ce client.</span><br />
+                          <button
+                            type="button"
+                            className="text-blue-500 hover:underline mt-1 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTimerClientFilter('all');
+                            }}
+                          >
+                            Afficher tous les projets
+                          </button>
+                        </div>
+                      ) : (
+                        <>No projects found.<br />Go to Projects to create one.</>
+                      )}
                     </div>
                   )}
-                  {projects
-                    .filter(p => p.active !== false) // Only show active projects
-                    .map(project => (
-                      <button
-                        key={project.id}
-                        onClick={() => {
-                          setSelectedProjectId(project.id);
-                          setIsProjectPickerOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between group"
-                      >
-                        <div className="flex items-center">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full mr-3"
-                            style={{ backgroundColor: project.color }}
-                          />
-                          <span className="text-gray-700 font-medium group-hover:text-gray-900">{project.name}</span>
-                        </div>
-                        {project.client && (
-                          <span className="text-xs text-gray-400">{project.client}</span>
-                        )}
-                      </button>
-                    ))}
+                  {availableTimerProjects.map(project => (
+                    <button
+                      key={project.id}
+                      onClick={() => {
+                        setSelectedProjectId(project.id);
+                        setIsProjectPickerOpen(false);
+                      }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between group"
+                    >
+                      <div className="flex items-center">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full mr-3"
+                          style={{ backgroundColor: project.color }}
+                        />
+                        <span className="text-gray-700 font-medium group-hover:text-gray-900">{project.name}</span>
+                      </div>
+                      {project.client && (
+                        <span className="text-xs text-gray-400">{project.client}</span>
+                      )}
+                    </button>
+                  ))}
                   <button
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 text-blue-500 text-sm flex items-center border-t border-gray-50 mt-1"
                     onClick={() => {
@@ -592,34 +654,71 @@ const App: React.FC = () => {
       {/* Main List */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {/* Billing Status Filter */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-gray-100 rounded-md">
-              <List className="w-4 h-4 text-gray-500" />
+        {/* Filter Bar (Client & Billing Status) */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-gray-100 rounded-md">
+                <List className="w-4 h-4 text-gray-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Entrées de temps</h3>
+                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Filtrer l'affichage</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Entrées de temps</h3>
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Filtrer par statut</p>
+
+            {/* Client Filter Dropdown */}
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
+              <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <select
+                value={timerClientFilter}
+                onChange={(e) => {
+                  const newClient = e.target.value;
+                  setTimerClientFilter(newClient);
+                  if (newClient !== 'all') {
+                    const clientObj = clients.find(c => c.id === newClient);
+                    const curProject = projects.find(p => p.id === selectedProjectId);
+                    if (curProject) {
+                      if (newClient === 'no-client' && curProject.client) {
+                        setSelectedProjectId(null);
+                      } else if (newClient !== 'no-client' && clientObj && curProject.client !== clientObj.name) {
+                        setSelectedProjectId(null);
+                      }
+                    }
+                  }
+                }}
+                className="text-xs sm:text-sm bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 font-medium text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer max-w-[200px] truncate"
+              >
+                <option value="all">Tous les clients ({clients.length})</option>
+                <option value="no-client">Sans client</option>
+                <optgroup label="Clients">
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-100">
+          {/* Billing Status Filter */}
+          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-100 self-start md:self-auto">
             <button
               onClick={() => setTimerBillingFilter('all')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'all' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'all' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Tout
             </button>
             <button
               onClick={() => setTimerBillingFilter('not-invoiced')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'not-invoiced' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'not-invoiced' ? 'bg-white text-blue-600 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
             >
               À facturer
             </button>
             <button
               onClick={() => setTimerBillingFilter('invoiced')}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'invoiced' ? 'bg-white text-green-600 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${timerBillingFilter === 'invoiced' ? 'bg-white text-green-600 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
             >
               Facturé
             </button>
@@ -762,7 +861,23 @@ const App: React.FC = () => {
         {groupedEntries.length === 0 && (
           <div className="text-center py-20 text-gray-400">
             <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
-            <p>No time entries found. Start the timer above!</p>
+            {timerClientFilter !== 'all' || timerBillingFilter !== 'all' ? (
+              <div>
+                <p className="font-medium text-gray-600">Aucune entrée ne correspond aux filtres appliqués.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimerClientFilter('all');
+                    setTimerBillingFilter('all');
+                  }}
+                  className="mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium underline"
+                >
+                  Réinitialiser les filtres
+                </button>
+              </div>
+            ) : (
+              <p>No time entries found. Start the timer above!</p>
+            )}
           </div>
         )}
       </div>

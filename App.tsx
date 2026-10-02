@@ -490,7 +490,7 @@ const App: React.FC = () => {
   const selectedProject = projects.find(p => p.id === selectedProjectId);
   const selectedClientObj = clients.find(c => c.id === timerClientFilter);
 
-  const availableTimerProjects = useMemo(() => {
+  const groupedTimerProjects = useMemo(() => {
     let filtered = projects.filter(p => p.active !== false);
     if (timerClientFilter === 'no-client') {
       filtered = filtered.filter(p => !p.client);
@@ -500,7 +500,24 @@ const App: React.FC = () => {
         filtered = filtered.filter(p => p.client === client.name);
       }
     }
-    return filtered;
+
+    const groups: { [key: string]: Project[] } = {};
+    filtered.forEach(p => {
+      const clientKey = p.client ? p.client : 'Sans client';
+      if (!groups[clientKey]) groups[clientKey] = [];
+      groups[clientKey].push(p);
+    });
+
+    const sortedClients = Object.keys(groups).sort((a, b) => {
+      if (a === 'Sans client') return 1;
+      if (b === 'Sans client') return -1;
+      return a.localeCompare(b);
+    });
+
+    return sortedClients.map(clientName => ({
+      clientName,
+      projects: groups[clientName].sort((a, b) => a.name.localeCompare(b.name))
+    }));
   }, [projects, timerClientFilter, clients]);
 
   // --- Render Views ---
@@ -567,7 +584,7 @@ const App: React.FC = () => {
                   )}
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {availableTimerProjects.length === 0 && (
+                  {groupedTimerProjects.length === 0 ? (
                     <div className="px-4 py-3 text-sm text-gray-400 text-center">
                       {timerClientFilter !== 'all' ? (
                         <div>
@@ -587,28 +604,38 @@ const App: React.FC = () => {
                         <>No projects found.<br />Go to Projects to create one.</>
                       )}
                     </div>
-                  )}
-                  {availableTimerProjects.map(project => (
-                    <button
-                      key={project.id}
-                      onClick={() => {
-                        setSelectedProjectId(project.id);
-                        setIsProjectPickerOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between group"
-                    >
-                      <div className="flex items-center">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full mr-3"
-                          style={{ backgroundColor: project.color }}
-                        />
-                        <span className="text-gray-700 font-medium group-hover:text-gray-900">{project.name}</span>
+                  ) : (
+                    groupedTimerProjects.map(group => (
+                      <div key={group.clientName}>
+                        {timerClientFilter === 'all' && (
+                          <div className="px-3 py-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50/80 border-y border-gray-50">
+                            {group.clientName}
+                          </div>
+                        )}
+                        {group.projects.map(project => (
+                          <button
+                            key={project.id}
+                            onClick={() => {
+                              setSelectedProjectId(project.id);
+                              setIsProjectPickerOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between group"
+                          >
+                            <div className="flex items-center">
+                              <div
+                                className="w-2.5 h-2.5 rounded-full mr-3"
+                                style={{ backgroundColor: project.color }}
+                              />
+                              <span className="text-gray-700 font-medium group-hover:text-gray-900">{project.name}</span>
+                            </div>
+                            {project.client && timerClientFilter !== 'all' && (
+                              <span className="text-xs text-gray-400">{project.client}</span>
+                            )}
+                          </button>
+                        ))}
                       </div>
-                      {project.client && (
-                        <span className="text-xs text-gray-400">{project.client}</span>
-                      )}
-                    </button>
-                  ))}
+                    ))
+                  )}
                   <button
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 text-blue-500 text-sm flex items-center border-t border-gray-50 mt-1"
                     onClick={() => {

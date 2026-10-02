@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Sparkles, Trash2, DollarSign, CheckCircle2 } from 'lucide-react';
 import { TimeEntry, Project } from '../types';
 import { Button } from './Button';
@@ -34,6 +34,29 @@ export const EditTimeEntryModal: React.FC<EditTimeEntryModalProps> = ({
   const [invoiced, setInvoiced] = useState(entry.invoiced ?? false);
 
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Group projects by client (sorted by client then project name)
+  const groupedProjects = useMemo(() => {
+    const validProjects = projects.filter(p => p.active !== false || p.id === projectId);
+    
+    const groups: { [key: string]: Project[] } = {};
+    validProjects.forEach(p => {
+      const clientKey = p.client ? p.client : 'Sans client';
+      if (!groups[clientKey]) groups[clientKey] = [];
+      groups[clientKey].push(p);
+    });
+
+    const sortedClients = Object.keys(groups).sort((a, b) => {
+      if (a === 'Sans client') return 1;
+      if (b === 'Sans client') return -1;
+      return a.localeCompare(b);
+    });
+
+    return sortedClients.map(clientName => ({
+      clientName,
+      projects: groups[clientName].sort((a, b) => a.name.localeCompare(b.name))
+    }));
+  }, [projects, projectId]);
 
   // Reset form when entry changes
   useEffect(() => {
@@ -137,19 +160,15 @@ export const EditTimeEntryModal: React.FC<EditTimeEntryModalProps> = ({
                   onChange={(e) => setProjectId(e.target.value)}
                   className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2 bg-white text-gray-900"
                 >
-                  {[...projects]
-                    .filter(p => p.active !== false || p.id === projectId)
-                    .sort((a, b) => {
-                      const cA = a.client || '';
-                      const cB = b.client || '';
-                      if (cA !== cB) return cA.localeCompare(cB);
-                      return a.name.localeCompare(b.name);
-                    })
-                    .map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}{p.client ? ` (${p.client})` : ''}{p.active === false ? ' (Archived)' : ''}
-                      </option>
-                    ))}
+                  {groupedProjects.map(group => (
+                    <optgroup key={group.clientName} label={group.clientName}>
+                      {group.projects.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.client ? `${p.client} — ${p.name}` : p.name}{p.active === false ? ' (Archived)' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
 

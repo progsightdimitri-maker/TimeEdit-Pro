@@ -58,6 +58,47 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
         return items;
     }, [items, filter]);
 
+    const groupedProjects = useMemo(() => {
+        const validProjects = projects.filter(p => p.active !== false);
+        const groups: { [key: string]: Project[] } = {};
+        validProjects.forEach(p => {
+            const clientKey = p.client ? p.client : 'Sans client';
+            if (!groups[clientKey]) groups[clientKey] = [];
+            groups[clientKey].push(p);
+        });
+
+        const sortedClients = Object.keys(groups).sort((a, b) => {
+            if (a === 'Sans client') return 1;
+            if (b === 'Sans client') return -1;
+            return a.localeCompare(b);
+        });
+
+        return sortedClients.map(clientName => ({
+            clientName,
+            projects: groups[clientName].sort((a, b) => a.name.localeCompare(b.name))
+        }));
+    }, [projects]);
+
+    const groupedAllProjects = useMemo(() => {
+        const groups: { [key: string]: Project[] } = {};
+        projects.forEach(p => {
+            const clientKey = p.client ? p.client : 'Sans client';
+            if (!groups[clientKey]) groups[clientKey] = [];
+            groups[clientKey].push(p);
+        });
+
+        const sortedClients = Object.keys(groups).sort((a, b) => {
+            if (a === 'Sans client') return 1;
+            if (b === 'Sans client') return -1;
+            return a.localeCompare(b);
+        });
+
+        return sortedClients.map(clientName => ({
+            clientName,
+            projects: groups[clientName].sort((a, b) => a.name.localeCompare(b.name))
+        }));
+    }, [projects]);
+
     const handleAdd = async () => {
         if (newName && newPrice !== '' && projectId) {
             await onAddItem(newName, Number(newPrice), projectId);
@@ -124,17 +165,15 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
                             onChange={(e) => setProjectId(e.target.value)}
                         >
                             <option value="">Sélectionner</option>
-                            {[...projects]
-                                .filter(p => p.active !== false)
-                                .sort((a, b) => {
-                                    const cA = a.client || '';
-                                    const cB = b.client || '';
-                                    if (cA !== cB) return cA.localeCompare(cB);
-                                    return a.name.localeCompare(b.name);
-                                })
-                                .map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}{p.client ? ` (${p.client})` : ''}</option>
-                                ))}
+                            {groupedProjects.map(group => (
+                                <optgroup key={group.clientName} label={group.clientName}>
+                                    {group.projects.map(p => (
+                                        <option key={p.id} value={p.id}>
+                                            {p.client ? `${p.client} — ${p.name}` : p.name}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            ))}
                         </select>
                     </div>
                 </div>
@@ -215,16 +254,15 @@ export const PurchaseManager: React.FC<PurchaseManagerProps> = ({
                                                     value={editProjectId}
                                                     onChange={(e) => setEditProjectId(e.target.value)}
                                                 >
-                                                    {[...projects]
-                                                        .sort((a, b) => {
-                                                            const cA = a.client || '';
-                                                            const cB = b.client || '';
-                                                            if (cA !== cB) return cA.localeCompare(cB);
-                                                            return a.name.localeCompare(b.name);
-                                                        })
-                                                        .map(p => (
-                                                            <option key={p.id} value={p.id}>{p.name}{p.client ? ` (${p.client})` : ''}</option>
-                                                        ))}
+                                                    {groupedAllProjects.map(group => (
+                                                        <optgroup key={group.clientName} label={group.clientName}>
+                                                            {group.projects.map(p => (
+                                                                <option key={p.id} value={p.id}>
+                                                                    {p.client ? `${p.client} — ${p.name}` : p.name}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ))}
                                                 </select>
                                                 <div className="flex items-center gap-1">
                                                     <button
